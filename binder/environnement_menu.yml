@@ -1,9 +1,8 @@
-name: projetcourt_v1
+name: PBlocalMutInfo
 channels:
     - defaults
-    - r
-    - conda-forge
     - bioconda
+    - conda-forge
 dependencies:
     - python=3.9.7
     - pip
@@ -14,7 +13,6 @@ dependencies:
     - scipy
     - spyder
     - biopython
-    - rstudio
     - pip:
         - weblogo==3.7.8
         - pbxplore
