@@ -1,0 +1,32 @@
+
+
+bnoblet@LAPTOP-SV7R9RGQ:~/projetcourt_GSAtools$ PBassign --help
+usage: PBassign [-h] [-p P] -o O [-x TRAJECTORY] [-g TOPOLOGY] [-v]
+
+Read PDB structures and assign protein blocs (PBs).
+
+optional arguments:
+  -h, --help     show this help message and exit
+  -p P           name of a pdb file or name of a directory containing pdb files
+  -o O           name for results
+  -v, --version  show program's version number and exit
+
+other options to handle molecular dynamics trajectories:
+  -x TRAJECTORY  name of the trajectory file
+  -g TOPOLOGY    name of the topology file
+  
+  
+bnoblet@LAPTOP-SV7R9RGQ:~/projetcourt_GSAtools$ PBcount --help
+usage: PBcount [-h] -f F -o O [--first-residue FIRST_RESIDUE] [-v]
+
+Compute PB frequency along protein sequence.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f F                  name(s) of the PBs file (in fasta format)
+  -o O                  name for results
+  --first-residue FIRST_RESIDUE
+                        define first residue number (1 by default)
+  -v, --version         show program's version number and exit
+  
+bnoblet@LAPTOP-SV7R9RGQ:~/projetcourt_GSAtools$

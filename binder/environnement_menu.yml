@@ -1,0 +1,20 @@
+name: projetcourt_v1
+channels:
+    - defaults
+    - r
+    - conda-forge
+    - bioconda
+dependencies:
+    - python=3.9.7
+    - pip
+    - numpy
+    - pandas
+    - mdanalysis
+    - matplotlib
+    - scipy
+    - spyder
+    - biopython
+    - rstudio
+    - pip:
+        - weblogo==3.7.8
+        - pbxplore
