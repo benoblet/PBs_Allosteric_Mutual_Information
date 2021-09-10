@@ -1,6 +1,7 @@
 
 
-bnoblet@LAPTOP-SV7R9RGQ:~/projetcourt_GSAtools$ PBassign --help
+$ PBassign --help
+
 usage: PBassign [-h] [-p P] -o O [-x TRAJECTORY] [-g TOPOLOGY] [-v]
 
 Read PDB structures and assign protein blocs (PBs).
@@ -16,7 +17,8 @@ other options to handle molecular dynamics trajectories:
   -g TOPOLOGY    name of the topology file
   
   
-bnoblet@LAPTOP-SV7R9RGQ:~/projetcourt_GSAtools$ PBcount --help
+$ PBcount --help
+
 usage: PBcount [-h] -f F -o O [--first-residue FIRST_RESIDUE] [-v]
 
 Compute PB frequency along protein sequence.
@@ -29,4 +31,3 @@ optional arguments:
                         define first residue number (1 by default)
   -v, --version         show program's version number and exit
   
-bnoblet@LAPTOP-SV7R9RGQ:~/projetcourt_GSAtools$
