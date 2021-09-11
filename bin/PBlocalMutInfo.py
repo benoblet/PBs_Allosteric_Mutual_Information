@@ -60,19 +60,16 @@ def get_frame_num(fastaheadline):
      return [number]
 
 
-def mutual_information(freq_dataframe,
-                       pb_alphabet = list(PB_ALPHABET)):
+def mutual_information(freq_dataframe):
     """
     Mutual Information calculation as implemented by GSA tools authors and 
     remembered by Pandini et al., 2012 (FASEB Journal).    
    
-    Parameters
+    Parameter
     ----------
     frequency_dataframe : a pandas dataframe
         Squared dataframe corresponding to the 16 PBs frequency between two 
         sequence position.
-    pb_alphabet : list
-        A list containing all Protein Block (PB) values.     
 
     Returns
     -------
@@ -85,12 +82,11 @@ def mutual_information(freq_dataframe,
     # val1 en ligne
     # val2 en colonne
     # voir comment faire avec pandas
-    # trouver les fonctions log voire log base 2 directement !
-    for val1 in pb_alphabet:
-        for val2 in pb_alphabet:
+    for val1 in freq_dataframe.index:
+        for val2 in freq_dataframe.columns:
             if freq_dataframe.loc[val1][val2] != 0:
-                mut_info_val += (freq_dataframe.loc[val1][val2]
-                * math.log( freq_dataframe.loc[val1][val2] /
+                mut_info_val += (freq_dataframe.loc[val1, val2]
+                * math.log( freq_dataframe.loc[val1, val2] /
                     (freq_dataframe.loc[val1].sum(axis=1) * freq_dataframe[val2].sum()),
                     2 )
                 )
@@ -137,7 +133,8 @@ def get_reduced_position_string(sequences_dataframe, seqposition, step = 10):
     return thesequence
     
 
-def column_mutual_information(sequences_dataframe, pos1, pos2, step):
+def column_mutual_information(sequences_dataframe, pos1, pos2, step,
+                              alphabet = list(PB_ALPHABET)):
     """
     Calculate Mutual Information for two columns in fasta alignment
     
@@ -152,10 +149,13 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step):
     pos1, pos2 : positive integers, >= 2
         Two protein blocks number positions to compute mutual information \
         between them. pos1 and pos2 can be equal.
-    step : positive not null integer, optional
+    step : positive not null integer
         Step between two frames and pdb snapshots. The default is set to 10 \
         but this option is aimed to be used with -s or --step value defined \
         by user (args.step).
+    alphabet : list
+        All available letters in a structural alphabet. By default, parameter \
+        set to Protein Blocks (PBs) alphabet.
     
     Returns
     -------
@@ -169,44 +169,34 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step):
     seq1 = get_reduced_position_string(sequences_dataframe, pos1, step)
     seq2 = get_reduced_position_string(sequences_dataframe, pos2, step)
 
-    np.zeros( (len(PB_ALPHABET), len(PB_ALPHABET)) )
+    # initialise co-occurence frequency dataframe (to have names in margin ^^)
+    alpha_matrix = np.zeros( (len(alphabet), len(alphabet)), dtype = int )
+    counts_dataframe = pd.DataFrame(data = alpha_matrix,
+                                   columns= alphabet,
+                                   index = alphabet)
+    
+    for tps in range(len(seq1)):
+        # frame / row PB motif for sequence in position1
+        for l1 in counts_dataframe.index:
+            if l1 == seq1[tps]:
+                break
+            
+        # frame / row PB motif for sequence in position2  
+        for l2 in counts_dataframe.columns:
+            if l2 == seq2[tps]:
+                break
+        
+        # assert sentences removed as undefined PBs ("Z") were discarded
+        
+        # update co-occurrence in counts dataframe
+        counts_dataframe.loc[l1, l2] += 1
+    
+    # generate co-occurrence frequencies dataframe then compute MI
     
     
-# Raw extracts from g_sa_analyze.c (GSA-tools script on GitHub)
-
-    /* initialize probability matrix to 0.0 */
-    initialise_float_matrix(probMat->prob, probMat->codeSet->nElements, probMat->altCodeSet->nElements, 0.0);
-    /* initialize probability vectors to 0.0 */
-    for(k = 0; k < probMat->codeSet->nElements; ++k)
-        probMat->codeSet->element[k].prob = 0.0;
-    for(l = 0; l < probMat->altCodeSet->nElements; ++l)
-        probMat->altCodeSet->element[l].prob = 0.0;
-
-    for(i = 0; i < fastaSequenceSet->nSequences; ++i) {
-        for(k = 0; k < probMat->codeSet->nElements; ++k) {
-            if (probMat->codeSet->element[k].code == iString[i]) {
-                probMat->codeSet->element[k].prob += (1.0 / fastaSequenceSet->nSequences);
-                break;
-            }
-        }
-        for(l = 0; l < probMat->altCodeSet->nElements; ++l) {
-            if (probMat->altCodeSet->element[l].code == jString[i]) {
-                probMat->altCodeSet->element[l].prob += (1.0 / fastaSequenceSet->nSequences);
-                break;
-            }
-        }
-        assert((k < probMat->codeSet->nElements) && "k beyond matrix limit!");
-        assert((l < probMat->altCodeSet->nElements) && "l beyond matrix limit!")
-        probMat->prob[k][l] += (1.0 / fastaSequenceSet->nSequences);
-    }
-
-    MI = mutual_information(probMat, probMat->codeSet, probMat->altCodeSet);
-    *ptr_eeMI = estimate_MI_error(probMat, probMat->codeSet, probMat->altCodeSet, fastaSequenceSet->nSequences);
-
-    free(iString);
-    free(jString);
-
-    return(MI);
+    mut_info_val = mutual_information(freq_dataframe)  
+    
+    return mut_info_val
 
 }
 
