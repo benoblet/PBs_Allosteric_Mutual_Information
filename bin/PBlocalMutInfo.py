@@ -23,6 +23,7 @@ import sys  # to exit when issues
 import os   # to check for folder and files existence
 import argparse  # arguments retrieval
 
+import math          # logarithm of different numbers
 import numpy as np   # arrays
 import pandas as pd  # data frame
 
@@ -35,7 +36,6 @@ PB_ALPHABET = "abcdefghijklmnop"
 
 
 # functions
-
 def get_frame_num(fastaheadline):
      """
      Parse header line of a fasta sequence(s) from PBassign
@@ -60,7 +60,7 @@ def get_frame_num(fastaheadline):
      return [number]
 
 
-def mutual_information(frequency_dataframe,
+def mutual_information(freq_dataframe,
                        pb_alphabet = list(PB_ALPHABET)):
     """
     Mutual Information calculation as implemented by GSA tools authors and 
@@ -76,8 +76,8 @@ def mutual_information(frequency_dataframe,
 
     Returns
     -------
-    mut_info_val : integer
-        Value of Mutual Information for 
+    mut_info_val : float
+        Value of Mutual Information for corresponding frequency dataframe
 
     """
     mut_info_val = 0.0
@@ -88,12 +88,12 @@ def mutual_information(frequency_dataframe,
     # trouver les fonctions log voire log base 2 directement !
     for val1 in pb_alphabet:
         for val2 in pb_alphabet:
-            if frequency_dataframe[val1][val2] != 0:
-                mut_info_val += frequency_dataframe[val1][val2]
-                * log(
-                    (frequency_dataframe[val1][val2]) /
-                    (frequency_dataframe[val1].sum * frequency_dataframe[val2].sum) )
-                / log(2)
+            if freq_dataframe.loc[val1][val2] != 0:
+                mut_info_val += (freq_dataframe.loc[val1][val2]
+                * math.log( freq_dataframe.loc[val1][val2] /
+                    (freq_dataframe.loc[val1].sum(axis=1) * freq_dataframe[val2].sum()),
+                    2 )
+                )
     
     if mut_info_val > 0:
         return mut_info_val
@@ -101,19 +101,78 @@ def mutual_information(frequency_dataframe,
         return 0
 
 
+def get_reduced_position_string(sequences_dataframe, seqposition, step = 10):
+    """
+    Retrieve a sequence for defined position with all or selected frames.  
+    
+    Parameters
+    ----------
+    sequences_dataframe : pandas dataframe
+        Dataframe containing all Protein Blocks sequences, without undefined \
+        "Z" values. Rows stand for one pdb file or molecular dynamic frame, \
+        columns matches position in structural alphabet protein sequence. The \
+        first two undertermined "Z" PBs motifs are considered as 0 and 1 \
+        position respectively but do not exist in dataframe.
+    seqposition : integer
+        Value to select an aminoacid position. Must be superior or equal to 2 \
+        considering dataframe column numerotation.
+    step : positive not null integer, optional
+        Step between two frames and pdb snapshots. The default is set to 10 \
+        but this option is aimed to be used with -s or --step value defined \
+        by user (args.step).
+
+    Returns
+    -------
+    thesequence : string.
+        The sequence corresponding to PBs transitions for seqposition and \
+        some frames depending on step value.    
+    """
+    # indexes selection
+    reduced = range(1, sequences.dataframe.shape[1] + 1, step)
+    # column selection
+    partialcol = sequences_dataframe.loc[reduced, seqposition]
+    # create a string
+    thesequence = list(partialcol).join()
+    
+    return thesequence
+    
+
+def column_mutual_information(sequences_dataframe, pos1, pos2, step):
+    """
+    Calculate Mutual Information for two columns in fasta alignment
+    
+    Parameters
+    ----------
+    sequences_dataframe : pandas dataframe
+        Dataframe containing all Protein Blocks sequences, without undefined \
+        "Z" values. Rows stand for one pdb file or molecular dynamic frame, \
+        columns matches position in structural alphabet protein sequence. The \
+        first two undertermined "Z" PBs motifs are considered as 0 and 1 \
+        position respectively but do not exist in dataframe.
+    pos1, pos2 : positive integers, >= 2
+        Two protein blocks number positions to compute mutual information \
+        between them. pos1 and pos2 can be equal.
+    step : positive not null integer, optional
+        Step between two frames and pdb snapshots. The default is set to 10 \
+        but this option is aimed to be used with -s or --step value defined \
+        by user (args.step).
+    
+    Returns
+    -------
+    mut_info_val : float
+        Value of Mutual Information for corresponding set of positions using \
+        mutual_information() function defined above    
+    """
+    mut_info_val = 0.0
+
+    # retrieve sequences
+    seq1 = get_reduced_position_string(sequences_dataframe, pos1, step)
+    seq2 = get_reduced_position_string(sequences_dataframe, pos2, step)
+
+    np.zeros( (len(PB_ALPHABET), len(PB_ALPHABET)) )
+    
+    
 # Raw extracts from g_sa_analyze.c (GSA-tools script on GitHub)
-
-/*____________________________________________________________________________*/
-/** calculate Mutual Information for two columns in fasta alignment */
-float column_mutual_information(SeqSet *fastaSequenceSet, ProbMatrix *probMat, int icol, int jcol, float *ptr_eeMI) {
-
-    int i,k,l; /* indexes */
-    char *iString, *jString; /* string placeholders */
-    float MI = 0.0; /* Mutual Information value */
-
-    /* create string from column */
-    iString = get_string_from_column(fastaSequenceSet, icol);
-    jString = get_string_from_column(fastaSequenceSet, jcol);
 
     /* initialize probability matrix to 0.0 */
     initialise_float_matrix(probMat->prob, probMat->codeSet->nElements, probMat->altCodeSet->nElements, 0.0);
@@ -169,13 +228,13 @@ if __name__ == "__main__":
     
     ## PBxplore arguments
     parser.add_argument("-p", "--pdbfolder",
-                        help="path of a directory containing pdb files")
+                        help="path of a directory containing pdb files.")
     parser.add_argument("-x", "--trajectory",
                         help="name of the trajectory file, \
-                            if used topology file required")
+                            if used topology file required.")
     parser.add_argument("-t", "--topology",
                         help="name of the topology file, \
-                            if used trajectory file is required")
+                            if used trajectory file is required.")
     
     ## Complementary arguments                    
     parser.add_argument("-o", "--outputfolder",
@@ -187,7 +246,8 @@ if __name__ == "__main__":
     ## Mutual Information arguments
     parser.add_argument("-s", "--step",
                         help="step to select frames for allosteric study, \
-                            one file will be kept every s files")
+                            one file will be kept every s files. Value must be \
+                            a positive integer.")
     parser.add_argument("-v", "--verbose",
                         help="make the script verbose",
                         action="store_true")
@@ -220,8 +280,12 @@ if __name__ == "__main__":
             args.outputfolder = os.path.split(args.pdbfolder)[0]
         else:
             args.outputfolder = os.path.split(args.trajectory)[0]
-        print(f"Results folder will be written in {args.outputfolder:s}.")
-            
+        print(f"Results folder will be written in {args.outputfolder:s}")
+    
+    if not args.step:
+        args.step = 1
+    else if float(args.step) <= 0 or type(args.step) != int:
+        sys.exit("Step value, is invalid must be a positive integer")
         
     # Let's use PBassign
     if args.verbose:
@@ -271,16 +335,19 @@ if __name__ == "__main__":
             else:
                 # get PBs sequence itself
                 current[1] += line.strip()
-                
+
+
+# ajouter un paramètre pour conserver aminoacid number ?            
+
     # Insert into a dataframe
     pb_sequences_df = pd.DataFrame(data = pb_sequences,
-                                   columns = range(len(pb_sequences[0])),
+                                   columns = range(2, len(pb_sequences[0])+2),
                                    index = pb_frames)
+    pb_sequences_df.sort_index(inplace=True)
     
-    pb_sequences_df_sorted = pb_sequences_df.sort_index(inplace=False)  
     if args.verbose:
         print(f"{pb_sequences_df.shape[0]:d} sequences found.")
-        print(f"{pb_sequences_df.shape[1]-1:d} PBs per sequence.")
+        print(f"{pb_sequences_df.shape[1]:d} PBs per sequence.")
 
 
 
