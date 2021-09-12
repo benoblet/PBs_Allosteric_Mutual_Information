@@ -35,6 +35,101 @@ PB_ALPHABET = "abcdefghijklmnop"
 
 
 # functions
+def arguments_retrieval():
+    """
+    A function to group arguments parsing and make main code easier to read.
+    
+    Returns
+    -------
+    args : list
+        If no error was raised, valid argument list is returned.
+    """    
+    
+    # Communication between command line and Python program
+    parser = argparse.ArgumentParser(
+        description='Read PDB structures, assign protein blocs (PBs) \
+            using PBxplore then generate alignement and Mutual \
+            Information (MI) matrix in plain text files along with MI \
+            graphical representation.')
+    
+    ## PBxplore arguments
+    parser.add_argument("-p", "--pdbfolder",
+                        help="path of a directory containing pdb files.")
+    parser.add_argument("-x", "--trajectory",
+                        help="name of the trajectory file, \
+                            if used topology file required.")
+    parser.add_argument("-t", "--topology",
+                        help="name of the topology file, \
+                            if used trajectory file is required.")
+    
+    ## Additional Pxwplore argument with adaptation             
+    parser.add_argument("-o", "--outputfolder",
+                        help="path for the results folder writing. Defaut, \
+                            same level as pdb inputfolder")
+    parser.add_argument("-on", "--outputname",
+                        help="Prefix for results files", required = True)
+
+    ## Mutual Information arguments
+    parser.add_argument("-s", "--step",
+                        help="step to select frames for allosteric study, \
+                            one file will be kept every s files. Value must be \
+                            a positive integer.")
+    parser.add_argument("-faa", "--firstaminoacid",
+                        help="The number of the first aminoacid in the complete \
+                            sequence protein. Value must be a positive integer.")
+    parser.add_argument("-v", "--verbose",
+                        help="make the script verbose",
+                        action="store_true")
+    
+    # Arguments list
+    args = parser.parse_args()
+    
+    
+    # Some checks before going on
+    ## An existing and valid input
+    if args.pdbfolder is None and args.trajectory is None:
+        sys.exit("Program needs at least path to folder or file(s)")
+    
+    if args.pdbfolder:
+        if not os.path.exists(args.pdbfolder):
+            sys.exit("Folder not found, please check it or give absolute path")
+        else:
+            if not os.listdir(args.pdbfolder):
+                sys.exit("No file found inside input folder")
+        
+    if args.trajectory and not args.topology:
+        sys.exit("Program needs both trajectory and topology files")
+
+    ## A valid output        
+    if not args.outputname:
+        sys.exit("Please specify a prefix for your results using -on option")          
+    
+    if args.outputfolder and os.path.exists(args.outputfolder):
+        print(f"Results folder is {args.outputfolder:s}")
+    if args.outputfolder is None:
+        if args.pdbfolder:
+            args.outputfolder = os.path.split(args.pdbfolder)[0]
+        else:
+            args.outputfolder = os.path.split(args.trajectory)[0]
+        print(f"Results folder will be written in {args.outputfolder:s}")
+    
+    ## Existing additionnal arguments 
+    if not args.step:
+        args.step = 1
+    else:
+        if float(args.step) <= 0 or type(args.step) != int:
+            sys.exit("Step value, is invalid must be a positive integer")
+            
+    if not args.faa:
+        args.firstaminoacid = 1
+    else:
+        if float(args.faa) <= 0 or type(args.faa) != int:
+            sys.exit("Aminoacid number must be a positive integer")
+            
+    # Finished, ready to go on
+    return args
+
+
 def get_frame_num(fastaheadline):
      """
      Parse header line of a fasta sequence(s) from PBassign
@@ -57,6 +152,66 @@ def get_frame_num(fastaheadline):
      number = int(frame.split(sep = " ")[-1])
      
      return [number]
+
+
+def get_reduced_frames_df(sequences_dataframe, step):
+    """
+    Generate a dataframe for only studied time or pdb frames. 
+    
+    Parameters
+    ----------
+    sequences_dataframe : pandas dataframe
+        Dataframe containing all Protein Blocks sequences, without undefined \
+        "Z" values. Rows stand for one pdb file or molecular dynamic frame, \
+        columns matches position in structural alphabet protein sequence. The \
+        first two undertermined "Z" PBs motifs are considered as 0 and 1 \
+        position respectively but do not exist in dataframe.
+    step : positive not null integer
+        Step between two frames and pdb snapshots. No default value is set as \
+        this option is meant to be used with -s or --step value defined by \
+        user (args.step).
+
+    Returns
+    -------
+    partial_df : pandas datarame
+        The original dataframe limited to regularly spaced selected frames or \
+        pdb files depending on step value.    
+    """
+    # indexes selection
+    reduced = range(1, sequences_dataframe.shape[1] + 1, step)
+    # reduced dataframe selection
+    partial_df = sequences_dataframe.loc[reduced, ]
+    
+    return partial_df
+
+
+def get_combinationseq_in_position(sequences_dataframe, seqposition):
+    """
+    Retrieve a sequence for defined position in the input dataframe.  
+    
+    Parameters
+    ----------
+    sequences_dataframe : pandas dataframe
+        Dataframe containing all Protein Blocks sequences, without undefined \
+        "Z" values. Rows stand for one pdb file or molecular dynamic frame, \
+        columns matches position in structural alphabet protein sequence. The \
+        first two undertermined "Z" PBs motifs are considered as 0 and 1 \
+        position respectively but do not exist in dataframe.
+    seqposition : integer >= 2
+        Value to select an aminoacid position. Must be superior or equal to 2 \
+        considering dataframe column numerotation.
+
+    Returns
+    -------
+    thesequence : string.
+        The sequence corresponding to PBs transitions for seqposition.    
+    """
+    # column selection
+    wantedcol = sequences_dataframe[seqposition]
+    # create a string
+    thesequence = "".join(list(wantedcol))
+    
+    return thesequence
 
 
 def mutual_information(freq_dataframe):
@@ -91,45 +246,9 @@ def mutual_information(freq_dataframe):
         return mut_info_val
     else:
         return 0
-
-
-def get_reduced_position_string(sequences_dataframe, seqposition, step = 10):
-    """
-    Retrieve a sequence for defined position with all or selected frames.  
-    
-    Parameters
-    ----------
-    sequences_dataframe : pandas dataframe
-        Dataframe containing all Protein Blocks sequences, without undefined \
-        "Z" values. Rows stand for one pdb file or molecular dynamic frame, \
-        columns matches position in structural alphabet protein sequence. The \
-        first two undertermined "Z" PBs motifs are considered as 0 and 1 \
-        position respectively but do not exist in dataframe.
-    seqposition : integer >= 2
-        Value to select an aminoacid position. Must be superior or equal to 2 \
-        considering dataframe column numerotation.
-    step : positive not null integer, optional
-        Step between two frames and pdb snapshots. The default is set to 10 \
-        but this option is aimed to be used with -s or --step value defined \
-        by user (args.step).
-
-    Returns
-    -------
-    thesequence : string.
-        The sequence corresponding to PBs transitions for seqposition and \
-        some frames depending on step value.    
-    """
-    # indexes selection
-    reduced = range(1, sequences_dataframe.shape[1] + 1, step)
-    # column selection
-    partialcol = sequences_dataframe.loc[reduced, seqposition]
-    # create a string
-    thesequence = "".join(list(partialcol))
-    
-    return thesequence
     
 
-def column_mutual_information(sequences_dataframe, pos1, pos2, step,
+def column_mutual_information(sequences_dataframe, pos1, pos2,
                               alphabet = list(PB_ALPHABET)):
     """
     Calculate Mutual Information for two columns in fasta alignment
@@ -145,10 +264,6 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step,
     pos1, pos2 : positive integers, >= 2
         Two protein blocks number positions to compute mutual information \
         between them. pos1 and pos2 can be equal.
-    step : positive not null integer
-        Step between two frames and pdb snapshots. The default is set to 10 \
-        but this option is aimed to be used with -s or --step value defined \
-        by user (args.step).
     alphabet : list
         All available letters in a structural alphabet. By default, parameter \
         set to Protein Blocks (PBs) alphabet.
@@ -161,8 +276,8 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step,
     """
 
     # retrieve sequences
-    seq1 = get_reduced_position_string(sequences_dataframe, pos1, step)
-    seq2 = get_reduced_position_string(sequences_dataframe, pos2, step)
+    seq1 = get_combinationseq_in_position(sequences_dataframe, pos1)
+    seq2 = get_combinationseq_in_position(sequences_dataframe, pos2)
 
     # initialise co-occurence frequency dataframe (to have names in margin ^^)
     alpha_matrix = np.zeros( (len(alphabet), len(alphabet)), dtype = int )
@@ -197,75 +312,7 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step,
 if __name__ == "__main__":
     
     print("Program starting...")
-    
-    # Communication between command line and Python program
-    parser = argparse.ArgumentParser(
-        description='Read PDB structures, assign protein blocs (PBs) \
-            using PBxplore then generate alignement and Mutual \
-            Information (MI) matrix in plain text files along with MI \
-            graphical representation.')
-    
-    ## PBxplore arguments
-    parser.add_argument("-p", "--pdbfolder",
-                        help="path of a directory containing pdb files.")
-    parser.add_argument("-x", "--trajectory",
-                        help="name of the trajectory file, \
-                            if used topology file required.")
-    parser.add_argument("-t", "--topology",
-                        help="name of the topology file, \
-                            if used trajectory file is required.")
-    
-    ## Complementary arguments                    
-    parser.add_argument("-o", "--outputfolder",
-                        help="path for the results folder writing. Defaut, \
-                            same level as pdb inputfolder")
-    parser.add_argument("-on", "--outputname",
-                        help="Prefix for results files", required = True)
-
-    ## Mutual Information arguments
-    parser.add_argument("-s", "--step",
-                        help="step to select frames for allosteric study, \
-                            one file will be kept every s files. Value must be \
-                            a positive integer.")
-    parser.add_argument("-v", "--verbose",
-                        help="make the script verbose",
-                        action="store_true")
-    
-    # Arguments retrieval
-    args = parser.parse_args()
-    
-    
-    ## Some checks before going on
-    if args.pdbfolder is None and args.trajectory is None:
-        sys.exit("Program needs at least path to folder or file(s)")
-    
-    if args.pdbfolder:
-        if not os.path.exists(args.pdbfolder):
-            sys.exit("Folder not found, please check it or give absolute path")
-        else:
-            if not os.listdir(args.pdbfolder):
-                sys.exit("No file found inside input folder")
-            
-    if args.trajectory and not args.topology:
-        sys.exit("Program needs both trajectory and topology files")
-    
-    if not args.outputname:
-        sys.exit("Please specify a prefix for your results using -on option")          
-    
-    if args.outputfolder and os.path.exists(args.outputfolder):
-        print(f"Results folder is {args.outputfolder:s}")
-    if args.outputfolder is None:
-        if args.pdbfolder:
-            args.outputfolder = os.path.split(args.pdbfolder)[0]
-        else:
-            args.outputfolder = os.path.split(args.trajectory)[0]
-        print(f"Results folder will be written in {args.outputfolder:s}")
-    
-    if not args.step:
-        args.step = 1
-    else:
-        if float(args.step) <= 0 or type(args.step) != int:
-            sys.exit("Step value, is invalid must be a positive integer")
+    args = arguments_retrieval()
         
     # Let's use PBassign
     if args.verbose:
@@ -274,6 +321,7 @@ if __name__ == "__main__":
     if args.pdbfolder:
         assigned_o = os.path.join(args.outputfolder, args.outputname)
         os.system(f'PBassign -p {args.pdbfolder:s} -o {assigned_o:s}')
+        
     if args.trajectory and args.topology:        
         assigned_o = os.path.join(args.outputfolder, args.outputname)
         os.system(f'PBassign -x {args.trajectory:s} -g {args.topology} \
@@ -282,13 +330,14 @@ if __name__ == "__main__":
     # for devopment ---
     outputfolder = "/Users/bened/Documents/M2BI/1_Programmation_et_Gestion_Projets/Project"
     outputname = "WT_allFrames"
-    assigned_o = os.path.join(outputfolder, outputname)
     # --- for development end
-    
+
+    assigned_o = os.path.join(outputfolder, outputname) 
     fastafile = f"{assigned_o:s}.PB.fasta"
     
     if not os.path.isfile(fastafile):
-        sys.exit("PBassign output file not found: did it display any error?")
+        sys.exit("PBassign output file not found: did it display any error or \
+                 file extension '.PB.fasta' changed?")
     
     
     # File parsing
@@ -315,9 +364,7 @@ if __name__ == "__main__":
                 # get PBs sequence itself
                 current[1] += line.strip()
 
-# ajouter un paramètre pour conserver aminoacid number ?  
-    
-    # Insert into a dataframe
+    ## Insert into a dataframe
     pb_sequences_df = pd.DataFrame(data = pb_sequences,
                                    columns = range(2, len(pb_sequences[0])+2),
                                    index = pb_frames)
@@ -327,58 +374,57 @@ if __name__ == "__main__":
         print(f"{pb_sequences_df.shape[0]:d} sequences found.")
         print(f"{pb_sequences_df.shape[1]:d} PBs per sequence.")
     
-    # Print sequences into text file
+    ## Print sequences into text file
     if args.verbose:
         print("Writting sequences in text file.")
-    with open(assigned_o + ".allPBsequences.txt", 'w') as alignoutput:
+    with open(assigned_o + ".allPBsequences_v2.txt", 'w') as alignoutput:
         for seq in pb_sequences:
             alignoutput.write("".join(seq) + "\n")
     
+    # Reduce dataframe size to limited frames
+    pb_sequences_df = get_reduced_frames_df(pb_sequences_df, step = 15)
+    if args.verbose:
+        print(f"Only {pb_sequences_df.shape[0]:d} frames will be studied \
+        as --step option as been set.")
+
 
     # Initialise Mutual Information matrix 
-    pos_matrix = np.zeros( (len(seq), len(seq)), dtype = float )
+    pos_matrix = np.zeros((pb_sequences_df.shape[1], pb_sequences_df.shape[1]),
+                          dtype = float )
     mutinfo_df = pd.DataFrame(data = pos_matrix,
                               columns= pb_sequences_df.columns,
                               index = pb_sequences_df.columns)
-
-
-### calcul de la mutual information à revoir ci-dessous
-### J'ai seulement la diagonale, bizarre
-
     
-    # Compute Mutual Information dataframe 
+    
+    # Compute Mutual Information dataframe
+    starting_time = time.time()
+    
     for pb1 in mutinfo_df.index:
         for pb2 in mutinfo_df.columns:
             mutinfo_df.loc[pb1, pb2] = column_mutual_information(pb_sequences_df,
-                                                                 pb1, pb2,
-                                                                 step = 10)
+                                                                 pb1, pb2)
             if pb1 != pb2:
-                mutinfo_df.loc[pb1, pb2] = mutinfo_df.loc[pb2, pb1]
+                mutinfo_df.loc[pb2, pb1] = mutinfo_df.loc[pb1, pb2]
+
+    ending_time = time.time()
+    
+    # Display human readable time
+    duration_sec = ending_time - starting_time
+    duration_min = duration_sec // 60
+    duration_remaining_sec = duration_sec % 60
+    if args.verbose:
+        print(f"It took {duration_min:.0f} minute(s) and \
+        {duration_remaining_sec:.2f} seconds to compute MI matrix.")
+        
+    # Save Mutual Information Matrix (MI) to file
+    mutinfo_df.to_csv(os.path.join(outputfolder,
+                                   "WT_MIMatrix_15stepspacedFrames" + ".tsv"),
+                      sep = "\t", header = False, index = True)
 
 
-### faire impression de la matrice, en txt ? en csv ?
+### float foramt à préciser en nombre de décimales :/
+
 
 ### trouver comment faire les graphiques
 
-    sys.exit("Program finished")
-    
-    
-# raw code from GSA tools g_sa_analyse.c
-    
-        /*________________________________________________________________________*/
-    /** output Mutual Information matrices */
-    /** output MI */
-    if (my_rank == 0) {
-        MIFile = safe_open(opt2fn("-MImat", asize(fnm), fnm), "w");
-        for(i = 0; i < sequenceLength; ++i) {
-            for(j = 0; j < sequenceLength; ++j) {
-                fprintf(MIFile, "%8.3f", MIMat[i][j]);
-            }
-            fprintf(MIFile, "\n");
-        }
-        fclose(MIFile);
-    }
-    
-# end of raw code from GSA tools g_sa_analyse.c
-
-# END Raw extracts from g_sa_analyze.c (GSA-tools script on GitHub)
+    sys.exit("...Program finished")
