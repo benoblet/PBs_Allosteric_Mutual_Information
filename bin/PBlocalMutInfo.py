@@ -30,7 +30,6 @@ import pandas as pd  # data frame
 import time   # evaluate time, not used so far
 
 
-
 # a constant
 PB_ALPHABET = "abcdefghijklmnop"
 
@@ -79,15 +78,12 @@ def mutual_information(freq_dataframe):
     """
     mut_info_val = 0.0
 
-    # val1 en ligne
-    # val2 en colonne
-    # voir comment faire avec pandas
     for val1 in freq_dataframe.index:
         for val2 in freq_dataframe.columns:
-            if freq_dataframe.loc[val1][val2] != 0:
+            if freq_dataframe.loc[val1, val2] != 0:
                 mut_info_val += (freq_dataframe.loc[val1, val2]
                 * math.log( freq_dataframe.loc[val1, val2] /
-                    (freq_dataframe.loc[val1].sum(axis=1) * freq_dataframe[val2].sum()),
+                    (freq_dataframe.loc[val1].sum() * freq_dataframe[val2].sum()),
                     2 )
                 )
     
@@ -109,7 +105,7 @@ def get_reduced_position_string(sequences_dataframe, seqposition, step = 10):
         columns matches position in structural alphabet protein sequence. The \
         first two undertermined "Z" PBs motifs are considered as 0 and 1 \
         position respectively but do not exist in dataframe.
-    seqposition : integer
+    seqposition : integer >= 2
         Value to select an aminoacid position. Must be superior or equal to 2 \
         considering dataframe column numerotation.
     step : positive not null integer, optional
@@ -124,11 +120,11 @@ def get_reduced_position_string(sequences_dataframe, seqposition, step = 10):
         some frames depending on step value.    
     """
     # indexes selection
-    reduced = range(1, sequences.dataframe.shape[1] + 1, step)
+    reduced = range(1, sequences_dataframe.shape[1] + 1, step)
     # column selection
     partialcol = sequences_dataframe.loc[reduced, seqposition]
     # create a string
-    thesequence = list(partialcol).join()
+    thesequence = "".join(list(partialcol))
     
     return thesequence
     
@@ -163,7 +159,6 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step,
         Value of Mutual Information for corresponding set of positions using \
         mutual_information() function defined above    
     """
-    mut_info_val = 0.0
 
     # retrieve sequences
     seq1 = get_reduced_position_string(sequences_dataframe, pos1, step)
@@ -192,16 +187,10 @@ def column_mutual_information(sequences_dataframe, pos1, pos2, step,
         counts_dataframe.loc[l1, l2] += 1
     
     # generate co-occurrence frequencies dataframe then compute MI
-    
-    
+    freq_dataframe = counts_dataframe / len(seq1)
     mut_info_val = mutual_information(freq_dataframe)  
     
     return mut_info_val
-
-}
-
-# END Raw extracts from g_sa_analyze.c (GSA-tools script on GitHub)
-
 
 
 
@@ -274,8 +263,9 @@ if __name__ == "__main__":
     
     if not args.step:
         args.step = 1
-    else if float(args.step) <= 0 or type(args.step) != int:
-        sys.exit("Step value, is invalid must be a positive integer")
+    else:
+        if float(args.step) <= 0 or type(args.step) != int:
+            sys.exit("Step value, is invalid must be a positive integer")
         
     # Let's use PBassign
     if args.verbose:
@@ -308,7 +298,6 @@ if __name__ == "__main__":
     current = []
     
     with open(fastafile, 'r') as PBoutput:
-        
         for line in PBoutput:
             if line.startswith(">"):
                 if gotone:
@@ -326,9 +315,8 @@ if __name__ == "__main__":
                 # get PBs sequence itself
                 current[1] += line.strip()
 
-
-# ajouter un paramètre pour conserver aminoacid number ?            
-
+# ajouter un paramètre pour conserver aminoacid number ?  
+    
     # Insert into a dataframe
     pb_sequences_df = pd.DataFrame(data = pb_sequences,
                                    columns = range(2, len(pb_sequences[0])+2),
@@ -338,59 +326,45 @@ if __name__ == "__main__":
     if args.verbose:
         print(f"{pb_sequences_df.shape[0]:d} sequences found.")
         print(f"{pb_sequences_df.shape[1]:d} PBs per sequence.")
+    
+    # Print sequences into text file
+    if args.verbose:
+        print("Writting sequences in text file.")
+    with open(assigned_o + ".allPBsequences.txt", 'w') as alignoutput:
+        for seq in pb_sequences:
+            alignoutput.write("".join(seq) + "\n")
+    
+
+    # Initialise Mutual Information matrix 
+    pos_matrix = np.zeros( (len(seq), len(seq)), dtype = float )
+    mutinfo_df = pd.DataFrame(data = pos_matrix,
+                              columns= pb_sequences_df.columns,
+                              index = pb_sequences_df.columns)
 
 
+### calcul de la mutual information à revoir ci-dessous
+### J'ai seulement la diagonale, bizarre
+
+    
+    # Compute Mutual Information dataframe 
+    for pb1 in mutinfo_df.index:
+        for pb2 in mutinfo_df.columns:
+            mutinfo_df.loc[pb1, pb2] = column_mutual_information(pb_sequences_df,
+                                                                 pb1, pb2,
+                                                                 step = 10)
+            if pb1 != pb2:
+                mutinfo_df.loc[pb1, pb2] = mutinfo_df.loc[pb2, pb1]
 
 
+### faire impression de la matrice, en txt ? en csv ?
 
+### trouver comment faire les graphiques
 
-# Raw extracts from g_sa_analyze.c (GSA-tools script on GitHub)
-
-    /** allocate and initialize Mutual Information matrix */
-    MIMat = alloc_float_matrix(MIMat, sequenceLength, sequenceLength);
-    initialise_float_matrix(MIMat, sequenceLength, sequenceLength, 0.0);
-    eeMIMat = alloc_float_matrix(eeMIMat, sequenceLength, sequenceLength);
-    initialise_float_matrix(eeMIMat, sequenceLength, sequenceLength, 0.0);
-    JentropyMat = alloc_float_matrix(JentropyMat, sequenceLength, sequenceLength);
-    initialise_float_matrix(JentropyMat, sequenceLength, sequenceLength, 0.0);
-
-    /*________________________________________________________________________*/
-    /** allocate and initialize probability matrix */
-    initialize_probability_matrix(&probMat, &iCodeSet, &jCodeSet);
-
-    /*________________________________________________________________________*/
-    /** calculate Mutual Information */
-		int zz;
-		int completion_i = 0;
-		double completion;
-
-		MPI_Barrier(MPI_COMM_WORLD);
-
-		if (my_rank == 0) fprintf(stdout, "\nMutual Information and Joint Entropy\n");
-		fflush(stdout);
-    for(i = 0, zz = 0, completion_i = 0; i < sequenceLength; ++i) {
-        for(j = i; j < sequenceLength; ++j) {
-			   /* print progress */
-				++ zz; 
-				completion = (long double)zz / ((long double)(sequenceLength*(sequenceLength-1)) / 2) * 100;
-				if ((int)completion > completion_i) {
-					completion_i = (int)completion;
-					if (my_rank == 0) {
-						fprintf(stdout, "\t%3d%%\r", completion_i);
-						fflush(stdout);
-					}
-				}
-
-            MIMat[i][j] = column_mutual_information(&inputSequenceSet, &probMat, i, j, &eeMI);
-            eeMIMat[i][j] = eeMI;
-            if (i != j) {
-                MIMat[j][i] = MIMat[i][j];
-                eeMIMat[j][i] = eeMIMat[i][j];
-            }
-        }
-    }
-
-
+    sys.exit("Program finished")
+    
+    
+# raw code from GSA tools g_sa_analyse.c
+    
         /*________________________________________________________________________*/
     /** output Mutual Information matrices */
     /** output MI */
@@ -404,5 +378,7 @@ if __name__ == "__main__":
         }
         fclose(MIFile);
     }
+    
+# end of raw code from GSA tools g_sa_analyse.c
 
 # END Raw extracts from g_sa_analyze.c (GSA-tools script on GitHub)
