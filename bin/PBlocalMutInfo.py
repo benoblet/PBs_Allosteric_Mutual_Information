@@ -29,7 +29,6 @@ import pandas as pd  # data frame
 
 import time   # evaluate time for Mutual Information matrix
 import matplotlib.pyplot as plt
-import matplotlib  # for annotate_heatmap() module documentation function
 
 
 # a constant
@@ -392,17 +391,10 @@ if __name__ == "__main__":
         assigned_o = os.path.join(args.outputfolder, args.outputname)
         os.system(f'PBassign -x {args.trajectory:s} -g {args.topology} \
                   -o {assigned_o:s}')           
-    
-    # for devopment ---
-    outputfolder = "/Users/bened/Documents/M2BI/1_Programmation_et_Gestion_Projets/Project"
-    outputname = "WT_allFrames"
-    step = 10
-    faa = 603
-    # --- for development end
 
-    assigned_o = os.path.join(outputfolder, outputname) 
-    fastafile = f"{assigned_o:s}.PB.fasta"
+    # Let's check we have PBassign output file
     
+    fastafile = f"{assigned_o:s}.PB.fasta"
     if not os.path.isfile(fastafile):
         sys.exit("PBassign output file not found: did it display any error or \
                  file extension '.PB.fasta' changed?")
@@ -450,10 +442,15 @@ if __name__ == "__main__":
             alignoutput.write("".join(seq) + "\n")
     
     # Reduce dataframe size to limited frames
-    pb_sequences_df = get_reduced_frames_df(pb_sequences_df, step = step)
+    pb_sequences_df = get_reduced_frames_df(pb_sequences_df,
+                                            step = args.step)
     if args.verbose:
-        print(f"Only {pb_sequences_df.shape[0]:d} frames will be studied \
-        as --step option as been set.")
+        if args.step == 1:
+            print("All frames will be considered for Mutual information \
+            calculation.")
+        else:
+            print(f"Only {pb_sequences_df.shape[0]:d} frames will be studied \
+            as --step option as been set.")
 
 
     # Initialise Mutual Information matrix 
@@ -485,24 +482,24 @@ if __name__ == "__main__":
         {duration_remaining_sec:.2f} seconds to compute MI matrix.")
         
     # Save Mutual Information Matrix (MI) to file
-    csvfilename = assigned_o + f"_MIMatrix_{step:d}spacedFrames.tsv"
+    tsvfilename = assigned_o + f"_MIMatrix_{args.step:d}spacedFrames.tsv"
     if args.verbose:
         print("Writting Mutual information values in tsv file.")
-    mutinfo_df.to_csv(os.path.join(outputfolder, csvfilename),
+    mutinfo_df.to_csv(os.path.join(args.outputfolder, tsvfilename),
                       sep = "\t", float_format = "%.3f",
                       header = False, index = False)
 
 
 
     # Make graphical MImatrix representation
-    mutinfo_array = np.array(mutinfo_df)
     
     ## Set space size and axes
     figure, axes = plt.subplots(figsize = [20, 12],
                                 dpi = 500)
-
-    image, _ = heatmap(mutinfo_array, list(mutinfo_df.columns + faa),
-                       list(mutinfo_df.index + faa),
+    
+    mutinfo_array = np.array(mutinfo_df)
+    image, _ = heatmap(mutinfo_array, list(mutinfo_df.columns + args.faa),
+                       list(mutinfo_df.index + args.faa),
                        cmap = "GnBu", vmin = 0,
                        vmax = math.ceil(mutinfo_array.max()),
                        cbarlabel = "mutual information values")
@@ -516,7 +513,7 @@ if __name__ == "__main__":
     #plt.show()
     if args.verbose:
         print("Writting Mutual information Matrix plot in png file.")
-    figfilename = assigned_o + f"_MIMatrix_{step:d}spacedFrames_v2.png"
+    figfilename = assigned_o + f"_MIMatrix_{args.step:d}spacedFrames.png"
     plt.savefig(fname = figfilename, format = "png")
 
 
