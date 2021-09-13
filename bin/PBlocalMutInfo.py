@@ -57,11 +57,13 @@ def arguments_retrieval():
     parser.add_argument("-p", "--pdbfolder",
                         help="path of a directory containing pdb files.")
     parser.add_argument("-x", "--trajectory",
-                        help="name of the trajectory file, \
+                        help="path to the trajectory file, \
                             if used topology file required.")
     parser.add_argument("-t", "--topology",
-                        help="name of the topology file, \
+                        help="path to the topology file, \
                             if used trajectory file is required.")
+    parser.add_argument("-pb", "--pbfile",
+                        help="path to PBassign output file if already done.")
     
     ## Additional Pxwplore argument with adaptation             
     parser.add_argument("-o", "--outputfolder",
@@ -76,7 +78,7 @@ def arguments_retrieval():
                             one file will be kept every s files. Value must be \
                             a positive integer.")
     parser.add_argument("-faa", "--firstaminoacid",
-                        help="The number of the first aminoacid in the complete \
+                        help="number of the first aminoacid in the complete \
                             sequence protein. Value must be a positive integer.")
     parser.add_argument("-v", "--verbose",
                         help="make the script verbose",
@@ -88,7 +90,8 @@ def arguments_retrieval():
     
     # Some checks before going on
     ## An existing and valid input
-    if args.pdbfolder is None and args.trajectory is None:
+    if args.pdbfolder is None and args.trajectory is None \
+        and args.pbfile is None:
         sys.exit("Program needs at least path to folder or file(s)")
     
     if args.pdbfolder:
@@ -101,6 +104,10 @@ def arguments_retrieval():
     if args.trajectory and not args.topology:
         sys.exit("Program needs both trajectory and topology files")
 
+    if args.pbfile:
+        if not os.path.isfile(args.pbfile):
+            sys.exit("PB.fasta file not found")
+
     ## A valid output        
     if not args.outputname:
         sys.exit("Please specify a prefix for your results using -on option")          
@@ -110,22 +117,33 @@ def arguments_retrieval():
     if args.outputfolder is None:
         if args.pdbfolder:
             args.outputfolder = os.path.split(args.pdbfolder)[0]
-        else:
+        elif args.trajectory:
             args.outputfolder = os.path.split(args.trajectory)[0]
+        else:
+            args.outputfolder = os.path.split(args.pbfile)[0]
         print(f"Results folder will be written in {args.outputfolder:s}")
     
     ## Existing additionnal arguments 
     if not args.step:
         args.step = 1
     else:
-        if float(args.step) <= 0 or type(args.step) != int:
-            sys.exit("Step value, is invalid must be a positive integer")
+        try:
+            args.step = int(args.step)
+        except:
+            sys.exit("Step value is invalid, must be an integer")
+    if args.step <= 0:
+        sys.exit("Step value is invalid, must be a positive integer")
+        
             
-    if not args.faa:
+    if not args.firstaminoacid:
         args.firstaminoacid = 1
     else:
-        if float(args.faa) <= 0 or type(args.faa) != int:
-            sys.exit("Aminoacid number must be a positive integer")
+        try:
+            args.firstaminoacid = int(args.firstaminoacid)
+        except:
+            sys.exit("Aminoacid number is invalid, must be an integer")
+    if args.firstaminoacid <= 0:
+        sys.exit("Aminoacid number is invalid, must be a positive integer")
             
     # Finished, ready to go on
     return args
@@ -376,25 +394,29 @@ def heatmap(data, row_labels, col_labels, ax=None,
 
 if __name__ == "__main__":
     
-    print("Program starting...")
-    args = arguments_retrieval()
-        
-    # Let's use PBassign
-    if args.verbose:
-        print("Calling for PBassign function")
+    args = arguments_retrieval()     
+    print("Program starting...")  
     
-    if args.pdbfolder:
-        assigned_o = os.path.join(args.outputfolder, args.outputname)
-        os.system(f'PBassign -p {args.pdbfolder:s} -o {assigned_o:s}')
+    # Let's check if we already have a PBassign output file
+    if args.pbfile:
+        fastafile = args.pbfile
+        assigned_o = fastafile.replace(".PB.fasta", "")
+    else:
+        # Let's use PBassign
+        if args.verbose:
+            print("Calling for PBassign function")
         
-    if args.trajectory and args.topology:        
-        assigned_o = os.path.join(args.outputfolder, args.outputname)
-        os.system(f'PBassign -x {args.trajectory:s} -g {args.topology} \
-                  -o {assigned_o:s}')           
-
-    # Let's check we have PBassign output file
-    
-    fastafile = f"{assigned_o:s}.PB.fasta"
+        if args.pdbfolder:
+            assigned_o = os.path.join(args.outputfolder, args.outputname)
+            print(f'PBassign -p {args.pdbfolder:s} -o {assigned_o:s}')
+      
+        if args.trajectory and args.topology:        
+            assigned_o = os.path.join(args.outputfolder, args.outputname)
+            os.system(f'PBassign -x {args.trajectory:s} -g {args.topology} \
+                      -o {assigned_o:s}')      
+        
+        fastafile = f"{assigned_o:s}.PB.fasta"             
+        
     if not os.path.isfile(fastafile):
         sys.exit("PBassign output file not found: did it display any error or \
                  file extension '.PB.fasta' changed?")
@@ -424,11 +446,14 @@ if __name__ == "__main__":
                 # get PBs sequence itself
                 current[1] += line.strip()
 
+    print(f"{len(pb_sequences):d} sequences lues")
+    print(f"{len(pb_frames):d} numéros de frames lus")
+
     ## Insert into a dataframe
     pb_sequences_df = pd.DataFrame(data = pb_sequences,
                                    columns = range(2, len(pb_sequences[0])+2),
-                                   index = pb_frames)
-    pb_sequences_df.sort_index(inplace=True)
+                                   index = pb_frames)    
+    pb_sequences_df.sort_index(inplace = True)
     
     if args.verbose:
         print(f"{pb_sequences_df.shape[0]:d} sequences found.")
@@ -498,8 +523,9 @@ if __name__ == "__main__":
                                 dpi = 500)
     
     mutinfo_array = np.array(mutinfo_df)
-    image, _ = heatmap(mutinfo_array, list(mutinfo_df.columns + args.faa),
-                       list(mutinfo_df.index + args.faa),
+    image, _ = heatmap(mutinfo_array,
+                       list(mutinfo_df.columns + args.firstaminoacid),
+                       list(mutinfo_df.index + args.firstaminoacid),
                        cmap = "GnBu", vmin = 0,
                        vmax = math.ceil(mutinfo_array.max()),
                        cbarlabel = "mutual information values")
@@ -515,6 +541,5 @@ if __name__ == "__main__":
         print("Writting Mutual information Matrix plot in png file.")
     figfilename = assigned_o + f"_MIMatrix_{args.step:d}spacedFrames.png"
     plt.savefig(fname = figfilename, format = "png")
-
 
     print("... Program ends")
