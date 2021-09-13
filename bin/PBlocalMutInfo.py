@@ -27,7 +27,9 @@ import math          # logarithm of different numbers
 import numpy as np   # arrays
 import pandas as pd  # data frame
 
-import time   # evaluate time, not used so far
+import time   # evaluate time for Mutual Information matrix
+import matplotlib.pyplot as plt
+import matplotlib  # for annotate_heatmap() module documentation function
 
 
 # a constant
@@ -178,7 +180,7 @@ def get_reduced_frames_df(sequences_dataframe, step):
         pdb files depending on step value.    
     """
     # indexes selection
-    reduced = range(1, sequences_dataframe.shape[1] + 1, step)
+    reduced = range(1, sequences_dataframe.shape[0] + 1, step)
     # reduced dataframe selection
     partial_df = sequences_dataframe.loc[reduced, ]
     
@@ -308,6 +310,70 @@ def column_mutual_information(sequences_dataframe, pos1, pos2,
     return mut_info_val
 
 
+# Function from Matplolib documentation with some slight changes
+# https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html?highlight=heatmap
+def heatmap(data, row_labels, col_labels, ax=None,
+            cbar_kw={}, cbarlabel="", **kwargs):
+    """
+    Create a heatmap from a numpy array and two lists of labels.
+
+    Parameters
+    ----------
+    data
+        A 2D numpy array of shape (N, M).
+    row_labels
+        A list or array of length N with the labels for the rows.
+    col_labels
+        A list or array of length M with the labels for the columns.
+    ax
+        A `matplotlib.axes.Axes` instance to which the heatmap is plotted.  If
+        not provided, use current axes or create a new one.  Optional.
+    cbar_kw
+        A dictionary with arguments to `matplotlib.Figure.colorbar`.  Optional.
+    cbarlabel
+        The label for the colorbar.  Optional.
+    **kwargs
+        All other arguments are forwarded to `imshow`.
+    """
+
+    if not ax:
+        ax = plt.gca()
+
+    # Plot the heatmap
+    im = ax.imshow(data, **kwargs)
+
+    # Create colorbar
+    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
+    cbar.ax.set_ylabel(cbarlabel, rotation=+90, va="bottom")
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(data.shape[1]))
+    ax.set_yticks(np.arange(data.shape[0]))
+    # ... and label them with the respective list entries.
+    ax.set_xticklabels(col_labels)
+    ax.set_yticklabels(row_labels)
+
+    # Let the horizontal axes labeling appear on top.
+    ax.tick_params(top=True, bottom=False,
+                   labeltop=True, labelbottom=False)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=+90, ha="right",
+             rotation_mode="default")
+
+    # Turn spines off and create white grid.
+    #ax.spines[:].set_visible(False)
+
+    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
+    ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
+    #ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    return im, cbar
+# End of functions from Matplolib documentation
+
+
+
 
 if __name__ == "__main__":
     
@@ -330,6 +396,8 @@ if __name__ == "__main__":
     # for devopment ---
     outputfolder = "/Users/bened/Documents/M2BI/1_Programmation_et_Gestion_Projets/Project"
     outputname = "WT_allFrames"
+    step = 10
+    faa = 603
     # --- for development end
 
     assigned_o = os.path.join(outputfolder, outputname) 
@@ -377,12 +445,12 @@ if __name__ == "__main__":
     ## Print sequences into text file
     if args.verbose:
         print("Writting sequences in text file.")
-    with open(assigned_o + ".allPBsequences_v2.txt", 'w') as alignoutput:
+    with open(assigned_o + ".allPBsequences.txt", 'w') as alignoutput:
         for seq in pb_sequences:
             alignoutput.write("".join(seq) + "\n")
     
     # Reduce dataframe size to limited frames
-    pb_sequences_df = get_reduced_frames_df(pb_sequences_df, step = 15)
+    pb_sequences_df = get_reduced_frames_df(pb_sequences_df, step = step)
     if args.verbose:
         print(f"Only {pb_sequences_df.shape[0]:d} frames will be studied \
         as --step option as been set.")
@@ -417,14 +485,39 @@ if __name__ == "__main__":
         {duration_remaining_sec:.2f} seconds to compute MI matrix.")
         
     # Save Mutual Information Matrix (MI) to file
-    mutinfo_df.to_csv(os.path.join(outputfolder,
-                                   "WT_MIMatrix_15stepspacedFrames" + ".tsv"),
-                      sep = "\t", header = False, index = True)
+    csvfilename = assigned_o + f"_MIMatrix_{step:d}spacedFrames.tsv"
+    if args.verbose:
+        print("Writting Mutual information values in tsv file.")
+    mutinfo_df.to_csv(os.path.join(outputfolder, csvfilename),
+                      sep = "\t", float_format = "%.3f",
+                      header = False, index = False)
 
 
-### float foramt à préciser en nombre de décimales :/
+
+    # Make graphical MImatrix representation
+    mutinfo_array = np.array(mutinfo_df)
+    
+    ## Set space size and axes
+    figure, axes = plt.subplots(figsize = [20, 12],
+                                dpi = 500)
+
+    image, _ = heatmap(mutinfo_array, list(mutinfo_df.columns + faa),
+                       list(mutinfo_df.index + faa),
+                       cmap = "GnBu", vmin = 0,
+                       vmax = math.ceil(mutinfo_array.max()),
+                       cbarlabel = "mutual information values")
+    
+    ## Add a main title and fit nicely graph
+    plt.suptitle(t = "Mutual Information Matrix for studied protein sequence \
+    in PBs", ha = "center", va = "top", size = 15)
+    plt.tight_layout()
+    
+    ## Save graphical reprensetation (figure) in a file
+    #plt.show()
+    if args.verbose:
+        print("Writting Mutual information Matrix plot in png file.")
+    figfilename = assigned_o + f"_MIMatrix_{step:d}spacedFrames_v2.png"
+    plt.savefig(fname = figfilename, format = "png")
 
 
-### trouver comment faire les graphiques
-
-    sys.exit("...Program finished")
+    print("... Program ends")
