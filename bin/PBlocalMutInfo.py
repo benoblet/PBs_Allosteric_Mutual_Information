@@ -408,18 +408,18 @@ if __name__ == "__main__":
         
         if args.pdbfolder:
             assigned_o = os.path.join(args.outputfolder, args.outputname)
-            print(f'PBassign -p {args.pdbfolder:s} -o {assigned_o:s}')
+            os.system(f'PBassign -p {args.pdbfolder:s} -o {assigned_o:s}')
       
         if args.trajectory and args.topology:        
             assigned_o = os.path.join(args.outputfolder, args.outputname)
-            os.system(f'PBassign -x {args.trajectory:s} -g {args.topology} \
-                      -o {assigned_o:s}')      
+            os.system(f'PBassign -x {args.trajectory:s} -g {args.topology} ' 
+                      f'-o {assigned_o:s}')      
         
         fastafile = f"{assigned_o:s}.PB.fasta"             
         
     if not os.path.isfile(fastafile):
-        sys.exit("PBassign output file not found: did it display any error or \
-                 file extension '.PB.fasta' changed?")
+        sys.exit("PBassign output file not found: did it display any error or "
+                 "file extension '.PB.fasta' changed?")
     
     
     # File parsing
@@ -446,9 +446,6 @@ if __name__ == "__main__":
                 # get PBs sequence itself
                 current[1] += line.strip()
 
-    print(f"{len(pb_sequences):d} sequences lues")
-    print(f"{len(pb_frames):d} numéros de frames lus")
-
     ## Insert into a dataframe
     pb_sequences_df = pd.DataFrame(data = pb_sequences,
                                    columns = range(2, len(pb_sequences[0])+2),
@@ -471,11 +468,11 @@ if __name__ == "__main__":
                                             step = args.step)
     if args.verbose:
         if args.step == 1:
-            print("All frames will be considered for Mutual information \
-            calculation.")
+            print("All frames will be considered for Mutual information "
+                  "calculation.")
         else:
-            print(f"Only {pb_sequences_df.shape[0]:d} frames will be studied \
-            as --step option as been set.")
+            print(f"Only {pb_sequences_df.shape[0]:d} frames will be studied "
+                  f"as --step option as been set.")
 
 
     # Initialise Mutual Information matrix 
@@ -503,15 +500,14 @@ if __name__ == "__main__":
     duration_min = duration_sec // 60
     duration_remaining_sec = duration_sec % 60
     if args.verbose:
-        print(f"It took {duration_min:.0f} minute(s) and \
-        {duration_remaining_sec:.2f} seconds to compute MI matrix.")
+        print(f"It took {duration_min:.0f} minute(s) and "
+              f"{duration_remaining_sec:.2f} seconds to compute MI matrix.")
         
     # Save Mutual Information Matrix (MI) to file
     tsvfilename = assigned_o + f"_MIMatrix_{args.step:d}spacedFrames.tsv"
     if args.verbose:
         print("Writting Mutual information values in tsv file.")
-    mutinfo_df.to_csv(os.path.join(args.outputfolder, tsvfilename),
-                      sep = "\t", float_format = "%.3f",
+    mutinfo_df.to_csv(tsvfilename, sep = "\t", float_format = "%.3f",
                       header = False, index = False)
 
 
@@ -531,8 +527,8 @@ if __name__ == "__main__":
                        cbarlabel = "mutual information values")
     
     ## Add a main title and fit nicely graph
-    plt.suptitle(t = "Mutual Information Matrix for studied protein sequence \
-    in PBs", ha = "center", va = "top", size = 15)
+    plt.suptitle(t = "Mutual Information Matrix for studied protein sequence "
+    "in PBs", ha = "center", va = "top", size = 15)
     plt.tight_layout()
     
     ## Save graphical reprensetation (figure) in a file
@@ -542,4 +538,4 @@ if __name__ == "__main__":
     figfilename = assigned_o + f"_MIMatrix_{args.step:d}spacedFrames.png"
     plt.savefig(fname = figfilename, format = "png")
 
-    print("... Program ends")
+    print("... Program ends.")
