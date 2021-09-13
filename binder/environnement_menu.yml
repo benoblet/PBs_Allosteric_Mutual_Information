@@ -1,7 +1,6 @@
 name: PBlocalMutInfo
 channels:
     - defaults
-    - bioconda
     - conda-forge
 dependencies:
     - python=3.9.7
@@ -10,9 +9,6 @@ dependencies:
     - pandas
     - mdanalysis
     - matplotlib
-    - scipy
-    - spyder
-    - biopython
     - pip:
         - weblogo==3.7.8
         - pbxplore
